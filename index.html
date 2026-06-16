@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Glitch Core MVP</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="auth-shell" id="authShell" aria-labelledby="authTitle">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <p class="eyebrow">Glitch</p>
+          <h1 id="authTitle">Sign in to your collection.</h1>
+          <p>Protect your inventory, review AI results, and keep your collection synced.</p>
+        </div>
+
+        <div class="auth-tabs" role="tablist" aria-label="Authentication">
+          <button class="active" type="button" data-auth-mode="signin">Sign In</button>
+          <button type="button" data-auth-mode="signup">Sign Up</button>
+          <button type="button" data-auth-mode="reset">Reset</button>
+        </div>
+
+        <form class="auth-form" id="authForm">
+          <label>
+            <span>Email</span>
+            <input id="authEmail" type="email" autocomplete="email" required />
+          </label>
+          <label class="password-field">
+            <span>Password</span>
+            <input id="authPassword" type="password" autocomplete="current-password" />
+          </label>
+          <label class="signup-field hidden">
+            <span>Display Name</span>
+            <input id="authDisplayName" type="text" autocomplete="name" />
+          </label>
+          <button class="primary-button" id="authSubmit" type="submit">Sign In</button>
+          <p class="auth-message" id="authMessage">Supabase required. Update config.js with your project URL and anon key.</p>
+        </form>
+      </div>
+    </section>
+
+    <section class="onboarding-overlay hidden" id="onboardingOverlay" aria-labelledby="onboardingTitle" aria-modal="true">
+      <div class="onboarding-card">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <p class="eyebrow">Welcome to Glitch</p>
+        <h2 id="onboardingTitle">Your AI desk for collectibles.</h2>
+        <p>Upload a photo, review the identification, approve the item, and Glitch builds your inventory with values and next actions.</p>
+        <div class="onboarding-steps" aria-label="Glitch workflow">
+          <span>Scan</span>
+          <span>Review</span>
+          <span>Inventory</span>
+        </div>
+        <button class="primary-button" id="onboardingStartButton" type="button">Start scanning</button>
+      </div>
+    </section>
+
+    <div class="app-shell hidden" id="appShell">
+      <header class="topbar">
+        <button class="icon-button back-button hidden" type="button" aria-label="Go back">
+          <span class="chevron"></span>
+        </button>
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <p class="eyebrow">Glitch</p>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <button class="spark-button" id="quickAddButton" type="button" aria-label="Quick add" aria-expanded="false">
+          <span class="spark"></span>
+        </button>
+        <div class="quick-add-menu hidden" id="quickAddMenu" aria-label="Quick add menu">
+          <button type="button" data-quick-action="scan">Scan Item</button>
+          <button type="button" data-quick-action="upload">Upload Photos</button>
+          <button type="button" data-quick-action="manual">Manual Entry</button>
+          <button type="button" disabled>Bulk Import <span>Future</span></button>
+        </div>
+      </header>
+
+      <main>
+        <section class="page active" id="dashboardPage" aria-labelledby="dashboardTitle">
+          <section class="collector-summary" aria-label="Collector summary">
+            <div class="summary-greeting">
+              <span>Good Morning, Zach</span>
+              <strong id="summaryValue">$0</strong>
+              <small>Collection Value</small>
+            </div>
+            <div class="summary-stats">
+              <div>
+                <span id="summaryItems">0</span>
+                <small>Total Items</small>
+              </div>
+              <div>
+                <span id="summaryWeekly">+0.0%</span>
+                <small>Weekly Change</small>
+              </div>
+              <div>
+                <span id="summaryQueue">0</span>
+                <small>Review Queue</small>
+              </div>
+            </div>
+          </section>
+
+          <div class="hero-panel">
+            <div class="hero-copy">
+              <p class="eyebrow">Glitch Core</p>
+              <h2 id="dashboardTitle">Scan. Verify. Collect smarter.</h2>
+              <p>Your AI review desk for cards, slabs, diecast, and sealed product.</p>
+              <button class="hero-cta hero-cta-primary" type="button" data-bulk-scan>Bulk Scan Collection</button>
+              <button class="hero-cta hero-cta-secondary" type="button" data-nav="scan">Single scan</button>
+            </div>
+            <div class="orbital-scan" aria-hidden="true">
+              <div class="hero-aura"></div>
+              <div class="collectible-shape trading-card"></div>
+              <div class="collectible-shape graded-slab"></div>
+              <div class="collectible-shape diecast-car"></div>
+              <div class="collectible-shape sealed-pack"></div>
+              <div class="pulse-ring"></div>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card">
+              <span>Total value</span>
+              <strong id="dashTotal">$0</strong>
+              <small>Approved inventory</small>
+            </article>
+            <article class="metric-card">
+              <span>Review queue</span>
+              <strong id="dashQueue">0</strong>
+              <small>Awaiting approval</small>
+            </article>
+            <article class="metric-card">
+              <span>Best action</span>
+              <strong id="dashAction">Scan</strong>
+              <small>Recommended next move</small>
+            </article>
+          </div>
+
+          <div class="section-heading">
+            <h3>Workflow</h3>
+            <button class="text-button" type="button" data-nav="scan">Start photo dump</button>
+          </div>
+          <div class="flow-strip">
+            <div><span>1</span>Photo Dump</div>
+            <div><span>2</span>AI Identification</div>
+            <div><span>3</span>Review Queue</div>
+            <div><span>4</span>Inventory</div>
+            <div><span>5</span>Value Engine</div>
+          </div>
+
+          <div class="roadmap-note">
+            <strong>Bulk scanning roadmap</strong>
+            <span>Batch intake, duplicate detection, and faster queue review are planned after the core loop is stable.</span>
+          </div>
+
+          <div class="section-heading">
+            <h3>Recently added</h3>
+            <button class="text-button" type="button" data-nav="inventory">View all</button>
+          </div>
+          <div class="item-list" id="recentInventory"></div>
+        </section>
+
+        <section class="page" id="scanPage" aria-labelledby="scanTitle">
+          <div class="upload-panel" id="dropZone">
+            <input id="photoInput" type="file" accept="image/*" multiple />
+            <label for="photoInput" class="upload-target">
+              <span class="upload-glyph"></span>
+              <strong id="scanTitle">Drop in collectible photos</strong>
+              <small>Upload one or many. Glitch will identify cards, figures, comics, and sealed product.</small>
+              <span class="upload-status" id="uploadStatus">Ready for photo dump</span>
+            </label>
+          </div>
+
+          <div class="preview-grid" id="photoPreview"></div>
+
+          <section class="batch-panel" id="batchPanel" aria-label="Batch processing status">
+            <div>
+              <span>Selected</span>
+              <strong id="batchSelected">0 photos</strong>
+            </div>
+            <div>
+              <span>Upload</span>
+              <strong id="batchUpload">0%</strong>
+            </div>
+            <div>
+              <span>AI Analysis</span>
+              <strong id="batchAnalysis">Idle</strong>
+            </div>
+            <div>
+              <span>Identified</span>
+              <strong id="batchIdentified">0</strong>
+            </div>
+            <div>
+              <span>Unknown</span>
+              <strong id="batchUnknown">0</strong>
+            </div>
+            <div>
+              <span>Est. Value</span>
+              <strong id="batchValue">$0</strong>
+            </div>
+          </section>
+
+          <button class="primary-button" id="analyzeButton" type="button" disabled>
+            Analyze photos
+          </button>
+          <button class="secondary-button sample-button" id="sampleScanButton" type="button">
+            Scan sample item
+          </button>
+
+          <div class="analysis-panel hidden" id="analysisPanel" aria-live="polite">
+            <div class="analysis-kicker">AI recognition engine</div>
+            <div class="scanner">
+              <div class="scanner-orbit orbit-one"></div>
+              <div class="scanner-orbit orbit-two"></div>
+              <div class="scanner-line"></div>
+              <div class="scanner-card"></div>
+              <div class="scanner-grid"></div>
+              <div class="scanner-lock"></div>
+            </div>
+            <h2>Analyzing...</h2>
+            <p id="analysisText">Finding titles, sets, condition clues, comps, and the smartest next action.</p>
+            <div class="scan-progress" aria-hidden="true">
+              <i id="scanProgressBar"></i>
+            </div>
+            <strong class="scan-confidence" id="scanConfidence">AI confidence warming up</strong>
+            <div class="analysis-signal" aria-hidden="true">
+              <span>Vision lock</span>
+              <span>Comps</span>
+              <span>Action engine</span>
+            </div>
+            <div class="analysis-steps" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+
+          <div class="scan-success hidden" id="scanSuccess" aria-live="polite">
+            <div class="success-mark"></div>
+            <strong>Scan complete</strong>
+            <span>AI results are ready for expert review.</span>
+          </div>
+        </section>
+
+        <section class="page" id="reviewPage" aria-labelledby="reviewTitle">
+          <div class="section-heading">
+            <div>
+              <h3 id="reviewTitle">AI Results Review Queue</h3>
+              <p>Approve what looks right, adjust the rest, reject the noise.</p>
+            </div>
+            <button class="text-button" type="button" id="approveAllButton">Approve all</button>
+          </div>
+          <div class="bulk-toolbar">
+            <button class="filter-chip active" type="button" data-review-filter="All">All</button>
+            <button class="filter-chip" type="button" data-review-filter="Trading Card">Cards</button>
+            <button class="filter-chip" type="button" data-review-filter="Comic">Comics</button>
+            <button class="filter-chip" type="button" data-review-filter="Sealed Product">Sealed</button>
+            <button class="filter-chip" type="button" data-review-filter="Figure">Figures</button>
+            <button class="danger-button bulk-reject" type="button" id="rejectAllButton">Reject all</button>
+          </div>
+          <div class="review-stack" id="reviewQueue"></div>
+        </section>
+
+        <section class="page" id="inventoryPage" aria-labelledby="inventoryTitle">
+          <div class="section-heading">
+            <div>
+              <h3 id="inventoryTitle">Inventory</h3>
+              <p>Approved items, estimated value, and the next move.</p>
+            </div>
+            <button class="text-button" type="button" data-nav="scan">Add photos</button>
+          </div>
+          <div class="inventory-tools">
+            <label class="search-box" for="inventorySearch">
+              <span></span>
+              <input id="inventorySearch" type="search" placeholder="Search inventory" autocomplete="off" />
+            </label>
+            <button class="filter-chip active" type="button" data-filter="All">All</button>
+            <button class="filter-chip" type="button" data-filter="Trading Card">Cards</button>
+            <button class="filter-chip" type="button" data-filter="Comic">Comics</button>
+            <button class="filter-chip" type="button" data-filter="Sealed Product">Sealed</button>
+            <button class="filter-chip" type="button" data-filter="Figure">Figures</button>
+          </div>
+          <div class="item-list" id="inventoryList"></div>
+          <section class="inventory-summary hidden" id="inventorySummary" aria-live="polite"></section>
+        </section>
+
+        <section class="page" id="detailPage" aria-labelledby="detailTitle">
+          <article class="detail-card" id="detailContent"></article>
+        </section>
+
+        <section class="page" id="profilePage" aria-labelledby="profileTitle">
+          <div class="section-heading">
+            <div>
+              <h3 id="profileTitle">Profile</h3>
+              <p>Your collector identity and collection stats.</p>
+            </div>
+          </div>
+          <form class="profile-card" id="profileForm">
+            <div class="profile-header">
+              <div class="profile-avatar-large" id="profileAvatarPreview">G</div>
+              <div>
+                <strong id="profileDisplayLabel">Collector</strong>
+                <span id="profileEmailLabel">Signed in</span>
+              </div>
+            </div>
+            <label>
+              <span>Username</span>
+              <input id="profileUsername" type="text" autocomplete="username" />
+            </label>
+            <label>
+              <span>Display Name</span>
+              <input id="profileDisplayName" type="text" autocomplete="name" />
+            </label>
+            <label>
+              <span>Avatar URL</span>
+              <input id="profileAvatarUrl" type="url" autocomplete="url" />
+            </label>
+            <label>
+              <span>Bio</span>
+              <textarea id="profileBio" rows="4"></textarea>
+            </label>
+            <div class="profile-stat-row">
+              <span>Collection Count</span>
+              <strong id="profileCollectionCount">0</strong>
+            </div>
+            <button class="primary-button" type="submit">Save Profile</button>
+          </form>
+        </section>
+
+        <section class="page" id="settingsPage" aria-labelledby="settingsTitle">
+          <div class="section-heading">
+            <div>
+              <h3 id="settingsTitle">Settings</h3>
+              <p>Account, privacy, support, and app readiness.</p>
+            </div>
+          </div>
+          <div class="settings-list">
+            <article>
+              <span>Supabase</span>
+              <strong id="supabaseStatus">Not configured</strong>
+            </article>
+            <article>
+              <span>Profile</span>
+              <strong id="settingsProfileStatus">Not loaded</strong>
+            </article>
+            <article>
+              <span>Storage Buckets</span>
+              <strong id="storageStatus">Checking...</strong>
+            </article>
+            <article>
+              <span>Production Safety</span>
+              <strong id="productionSafetyStatus">DEV checks pending</strong>
+            </article>
+            <article class="qa-checklist-row">
+              <span>QA Checklist</span>
+              <strong id="qaChecklistStatus">7 checks ready</strong>
+            </article>
+            <article>
+              <span>Privacy Policy</span>
+              <strong>Placeholder ready</strong>
+            </article>
+            <article>
+              <span>Support URL</span>
+              <strong>Placeholder ready</strong>
+            </article>
+            <article>
+              <span>Version / Build</span>
+              <strong id="appVersion">1.0.0 (1)</strong>
+            </article>
+            <button class="danger-button signout-button" id="signOutButton" type="button">Sign Out</button>
+          </div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Primary">
+        <button type="button" class="nav-item active" data-nav="dashboard">
+          <span class="nav-icon nav-dashboard"></span>
+          Dashboard
+        </button>
+        <button type="button" class="nav-item" data-nav="scan">
+          <span class="nav-icon nav-scan"></span>
+          Scan
+        </button>
+        <button type="button" class="nav-item" data-nav="review">
+          <span class="nav-icon nav-review"></span>
+          Review
+        </button>
+        <button type="button" class="nav-item" data-nav="inventory">
+          <span class="nav-icon nav-inventory"></span>
+          Inventory
+        </button>
+        <button type="button" class="nav-item" data-nav="profile">
+          <span class="nav-icon nav-profile"></span>
+          Profile
+        </button>
+        <button type="button" class="nav-item" data-nav="settings">
+          <span class="nav-icon nav-settings"></span>
+          Settings
+        </button>
+      </nav>
+    </div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <div class="empty-mark"></div>
+        <strong>Nothing here yet</strong>
+        <p>Start with a photo dump and Glitch will fill this in.</p>
+      </div>
+    </template>
+
+    <script src="config.js"></script>
+    <script src="supabase-adapter.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
