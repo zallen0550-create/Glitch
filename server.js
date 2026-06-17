@@ -155,6 +155,7 @@ async function identifyWithOpenAi(photos) {
               type: "input_text",
               text:
                 "Identify the exact Pokemon card shown in each uploaded image. Do not identify only the character. Read visible text, HP, card number, set symbols, language, rarity clues, foil treatment, copyright/year, border era, and condition clues. For Charizard, distinguish Base Set / Base Set 2 / Legendary Collection / evolutions / modern ex cards by card number, HP, layout, art, and set era. Return strict JSON with an items array. If confidence is under 90, include exactly three possible_matches. Pricing may be unknown at this step."
+                + " If the image is not a physical trading card or no readable card is visible, return an empty items array. Never invent a Pokemon card for a random non-card image."
             },
             ...imageContent
           ]
@@ -585,10 +586,20 @@ async function handleIdentify(request, response) {
     const payload = await readJsonBody(request);
     const photos = Array.isArray(payload.photos) ? payload.photos : [];
     if (!photos.length) return sendJson(response, 400, { error: "At least one uploaded photo is required" });
+    console.log(`[Glitch identify] /api/identify called with ${photos.length} photo(s).`);
 
     const user = await getSupabaseUser(token);
     const scan = await createScan(token, payload, user.id);
     const rawIdentifications = await identifyWithOpenAi(photos);
+    if (!rawIdentifications.length) {
+      await updateScan(token, scan.id, {
+        status: "failed",
+        error_message: "No supported trading card was identified.",
+        raw_result: { items: [] },
+        metadata: { photo_count: photos.length, review_item_count: 0, source: "OpenAI Vision", fallback: "disabled" }
+      });
+      return sendJson(response, 422, { error: "No supported trading card was identified." });
+    }
     const identifications = await Promise.all(rawIdentifications.map(enrichCardIdentification));
     const reviewItems = await createReviewItems(token, scan, photos, identifications);
     const completedScan = await updateScan(token, scan.id, {

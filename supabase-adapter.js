@@ -270,6 +270,7 @@
       throw new Error("DEV identification is handled locally by the mock recognition adapter.");
     }
 
+    console.log(`[Glitch identify] Calling /api/identify with ${photos.length} photo(s).`);
     const response = await fetch(`${getApiBaseUrl()}/api/identify`, {
       method: "POST",
       headers: {

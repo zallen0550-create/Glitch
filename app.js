@@ -545,6 +545,10 @@ async function handleSignOut() {
 }
 
 async function scanSampleItem() {
+  if (!canUseDemoIdentification()) {
+    showToast("Sample scan is disabled in production");
+    return;
+  }
   const file = createSampleCollectibleFile();
   setUploadedPhotos([file]);
   showToast("Sample item staged");
@@ -553,6 +557,11 @@ async function scanSampleItem() {
 }
 
 async function startBulkScanDemo() {
+  if (!canUseDemoIdentification()) {
+    showToast("Bulk demo is disabled in production");
+    navigate("scan");
+    return;
+  }
   navigate("scan");
   const files = Array.from({ length: 12 }, (_, index) => createSampleCollectibleFile(index + 1));
   setUploadedPhotos(files);
@@ -564,6 +573,7 @@ async function startBulkScanDemo() {
 async function runMockAnalysis() {
   if (!state.uploadedPhotos.length || state.isAnalyzing) return;
 
+  let analysisFailed = false;
   state.isAnalyzing = true;
   analyzeButton.disabled = true;
   document.body.classList.add("is-scanning");
@@ -589,7 +599,13 @@ async function runMockAnalysis() {
     }
 
     if (state.uploadPromise) await state.uploadPromise.catch(() => null);
+    analysisText.textContent = "Calling AI identification...";
+    scanConfidence.textContent = "Calling AI identification...";
+    state.batch.analysisProgress = "Calling AI";
+    renderBatchPanel();
     state.queue = await identifyAndCreateReviewItems();
+    analysisText.textContent = "Real AI result received";
+    scanConfidence.textContent = "Real AI result received";
     state.batch.identified = state.queue.length;
     state.batch.unknown = state.uploadedPhotos.length >= 8
       ? Math.max(1, Math.round(state.uploadedPhotos.length * 0.25))
@@ -605,16 +621,20 @@ async function runMockAnalysis() {
     navigate("review");
     window.setTimeout(() => reviewQueue.classList.add("results-ready"), 80);
   } catch (error) {
+    analysisFailed = true;
     console.error(error);
+    analysisPanel.classList.remove("hidden");
     analysisText.textContent = cleanError(error.message);
-    scanConfidence.textContent = "Identification paused";
-    showToast(cleanError(error.message) || "Analysis could not finish");
+    scanConfidence.textContent = "AI identification failed";
+    state.batch.analysisProgress = "Failed";
+    renderBatchPanel();
+    showToast("AI identification failed");
   } finally {
     state.isAnalyzing = false;
     document.body.classList.remove("is-scanning");
-    analysisPanel.classList.add("hidden");
+    if (!analysisFailed) analysisPanel.classList.add("hidden");
     scanProgressBar.style.width = "0%";
-    scanConfidence.textContent = "AI confidence warming up";
+    if (!analysisFailed) scanConfidence.textContent = "AI confidence warming up";
     renderPhotoPreview();
     renderAll();
   }
@@ -1019,7 +1039,7 @@ async function approveItems(ids) {
 }
 
 async function identifyAndCreateReviewItems() {
-  if (GlitchAdapters.auth?.isDevMode?.()) {
+  if (canUseDemoIdentification()) {
     const identified = await GlitchAdapters.recognition.identifyPhotos(state.uploadedPhotos);
     const enriched = await GlitchAdapters.valueEngine.enrichItems(identified);
     return persistReviewItems(enriched);
@@ -1031,7 +1051,18 @@ async function identifyAndCreateReviewItems() {
   }
 
   const result = await GlitchAdapters.auth.identifyUploadedPhotos(photoRefs);
+  if (!result.reviewItems?.length) {
+    throw new Error("No supported trading card was identified.");
+  }
   return normalizeSupabaseItems(result.reviewItems || []);
+}
+
+function canUseDemoIdentification() {
+  return Boolean(
+    window.GLITCH_CONFIG?.appEnvironment !== "production" &&
+      window.GLITCH_CONFIG?.demoIdentificationEnabled &&
+      GlitchAdapters.auth?.isDevMode?.()
+  );
 }
 
 async function persistReviewItems(items) {
