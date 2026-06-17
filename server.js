@@ -21,51 +21,6 @@ const types = {
   ".md": "text/markdown; charset=utf-8"
 };
 
-const mockIdentifications = [
-  {
-    name: "Charizard ex Special Illustration Rare",
-    category: "Trading Card",
-    series: "Pokemon 151",
-    estimated_value: 184,
-    low_value: 152,
-    high_value: 228,
-    confidence: 94,
-    condition_estimate: "Near Mint candidate",
-    recommended_action: "Grade",
-    marketplace_source: "Mock",
-    ai_explanation:
-      "High collector demand and clean visible edges make grading the best upside path before selling."
-  },
-  {
-    name: "Blue-Eyes White Dragon Unlimited",
-    category: "Trading Card",
-    series: "Legend of Blue Eyes",
-    estimated_value: 72,
-    low_value: 48,
-    high_value: 118,
-    confidence: 87,
-    condition_estimate: "Light edge wear",
-    recommended_action: "Watch",
-    marketplace_source: "Mock",
-    ai_explanation:
-      "The match is strong, but condition and print details need a closer look before committing to a listing."
-  },
-  {
-    name: "Sealed Booster Pack Shadow Era",
-    category: "Sealed Product",
-    series: "Vintage TCG",
-    estimated_value: 43,
-    low_value: 31,
-    high_value: 62,
-    confidence: 76,
-    condition_estimate: "Sealed / unverified",
-    recommended_action: "Bundle",
-    marketplace_source: "Mock",
-    ai_explanation:
-      "Standalone value is modest, but pairing it with nearby sealed packs could raise conversion."
-  }
-];
-
 const requiredBuckets = ["card-images", "uploads", "profile-images"];
 
 function logReadinessChecks() {
@@ -154,8 +109,8 @@ async function createScan(token, payload, userId) {
       source_bucket: payload.photos?.[0]?.bucket || null,
       source_path: payload.photos?.[0]?.path || null,
       source_url: payload.photos?.[0]?.url || null,
-      ai_provider: openAiApiKey ? "openai" : "mock",
-      ai_model: openAiApiKey ? openAiModel : "dev-mock",
+      ai_provider: "openai",
+      ai_model: openAiModel,
       metadata: { photo_count: payload.photos?.length || 0 }
     })
   });
@@ -173,8 +128,7 @@ async function updateScan(token, scanId, patch) {
 
 async function identifyWithOpenAi(photos) {
   if (!openAiApiKey) {
-    if (!allowMockAi) throw new Error("AI identification is not configured.");
-    return mockIdentifications.slice(0, Math.max(1, Math.min(mockIdentifications.length, photos.length || 1)));
+    throw new Error("OpenAI Vision is not configured. Refusing to return fake identification data.");
   }
 
   const imageContent = photos
@@ -200,7 +154,7 @@ async function identifyWithOpenAi(photos) {
             {
               type: "input_text",
               text:
-                "Identify the exact Pokemon card shown in each uploaded image. Do not identify only the character. Read visible text, card number, set symbols, language, rarity clues, foil treatment, copyright/year, and condition clues. Return strict JSON with an items array. If confidence is under 90, include exactly three possible_matches. Pricing may be unknown at this step."
+                "Identify the exact Pokemon card shown in each uploaded image. Do not identify only the character. Read visible text, HP, card number, set symbols, language, rarity clues, foil treatment, copyright/year, border era, and condition clues. For Charizard, distinguish Base Set / Base Set 2 / Legendary Collection / evolutions / modern ex cards by card number, HP, layout, art, and set era. Return strict JSON with an items array. If confidence is under 90, include exactly three possible_matches. Pricing may be unknown at this step."
             },
             ...imageContent
           ]
@@ -229,6 +183,10 @@ async function identifyWithOpenAi(photos) {
                     card_number: { type: "string" },
                     rarity: { type: "string" },
                     language: { type: "string" },
+                    hp: { type: "string" },
+                    visible_text: { type: "string" },
+                    set_logo_or_era: { type: "string" },
+                    artwork_description: { type: "string" },
                     estimated_value: { type: "number" },
                     low_value: { type: "number" },
                     high_value: { type: "number" },
@@ -263,6 +221,10 @@ async function identifyWithOpenAi(photos) {
                     "card_number",
                     "rarity",
                     "language",
+                    "hp",
+                    "visible_text",
+                    "set_logo_or_era",
+                    "artwork_description",
                     "estimated_value",
                     "low_value",
                     "high_value",
@@ -301,18 +263,24 @@ async function searchPokemonCards(item) {
   const cardName = pokemonQueryValue(item.card_name || item.name);
   const setName = pokemonQueryValue(item.set_name || item.series);
   const cardNumber = pokemonQueryValue(item.card_number);
+  const character = pokemonQueryValue(item.character);
+  const isCharizard = /charizard/i.test(`${cardName} ${character} ${item.visible_text || ""}`);
   if (cardName) clauses.push(`name:"${cardName}"`);
   if (setName) clauses.push(`set.name:"${setName}"`);
   if (cardNumber) clauses.push(`number:"${cardNumber}"`);
 
   const queries = [
+    isCharizard && cardNumber ? `name:"Charizard" number:"${cardNumber}"` : "",
+    isCharizard ? `name:"Charizard"` : "",
     clauses.join(" "),
     [cardName ? `name:"${cardName}"` : "", cardNumber ? `number:"${cardNumber}"` : ""].filter(Boolean).join(" "),
     cardName ? `name:"${cardName}"` : ""
   ].filter(Boolean);
+  const seen = new Set();
+  const allCards = [];
 
   for (const query of queries) {
-    const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=3`;
+    const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=${isCharizard ? 50 : 12}`;
     const response = await fetch(url, {
       headers: {
         ...(pokemonTcgApiKey ? { "X-Api-Key": pokemonTcgApiKey } : {})
@@ -320,10 +288,150 @@ async function searchPokemonCards(item) {
     }).catch(() => null);
     if (!response?.ok) continue;
     const body = await response.json().catch(() => null);
-    if (body?.data?.length) return body.data;
+    for (const card of body?.data || []) {
+      if (seen.has(card.id)) continue;
+      seen.add(card.id);
+      allCards.push(card);
+    }
   }
 
-  return [];
+  return rankPokemonCandidates(item, allCards).slice(0, isCharizard ? 10 : 5);
+}
+
+function normalizeText(value) {
+  return String(value || "").toLowerCase().replace(/pokemon/g, "pokémon");
+}
+
+function hasBaseSetSignals(item) {
+  const text = normalizeText([
+    item.set_name,
+    item.series,
+    item.card_number,
+    item.hp,
+    item.visible_text,
+    item.set_logo_or_era,
+    item.artwork_description
+  ].join(" "));
+  return (
+    text.includes("base set") ||
+    text.includes("4/102") ||
+    text.includes("120 hp") ||
+    text.includes("1999") ||
+    text.includes("wizards") ||
+    text.includes("shadowless") ||
+    text.includes("unlimited")
+  );
+}
+
+function hasModern151Signals(item) {
+  const text = normalizeText([
+    item.set_name,
+    item.series,
+    item.card_number,
+    item.visible_text,
+    item.set_logo_or_era
+  ].join(" "));
+  return text.includes("151") || text.includes("sv") || text.includes("special illustration") || text.includes("charizard ex");
+}
+
+function scorePokemonCandidate(item, card) {
+  const observed = normalizeText([
+    item.card_name,
+    item.name,
+    item.character,
+    item.set_name,
+    item.series,
+    item.card_number,
+    item.hp,
+    item.rarity,
+    item.visible_text,
+    item.set_logo_or_era,
+    item.artwork_description
+  ].join(" "));
+  const cardName = normalizeText(card.name);
+  const setName = normalizeText(card.set?.name);
+  const cardNumber = normalizeText(card.number);
+  const hp = normalizeText(card.hp);
+  const rarity = normalizeText(card.rarity);
+  const printedTotal = normalizeText(`${card.number}/${card.set?.printedTotal || ""}`);
+  let score = 0;
+  const reasons = [];
+
+  if (cardName && observed.includes(cardName)) {
+    score += 28;
+    reasons.push("card name text");
+  } else if (/charizard/i.test(observed) && /charizard/i.test(cardName)) {
+    score += 18;
+    reasons.push("character/name");
+  }
+
+  if (setName && observed.includes(setName)) {
+    score += 24;
+    reasons.push("set name");
+  }
+
+  if (cardNumber && observed.includes(cardNumber)) {
+    score += 22;
+    reasons.push("card number");
+  }
+
+  if (printedTotal && observed.includes(printedTotal)) {
+    score += 24;
+    reasons.push("full collector number");
+  }
+
+  if (hp && observed.includes(`${hp} hp`)) {
+    score += 10;
+    reasons.push("HP");
+  }
+
+  if (rarity && observed.includes(rarity)) {
+    score += 8;
+    reasons.push("visible rarity");
+  }
+
+  if (hasBaseSetSignals(item)) {
+    if (/base set$/i.test(card.set?.name || "") || card.id === "base1-4") {
+      score += 34;
+      reasons.push("Base Set era");
+    }
+    if (/151|scarlet|violet|sv/i.test(card.set?.name || "")) {
+      score -= 80;
+      reasons.push("blocked modern 151 mismatch");
+    }
+  }
+
+  if (hasModern151Signals(item) && /151/i.test(card.set?.name || "")) {
+    score += 18;
+    reasons.push("151 era");
+  }
+
+  return { card, score, reasons };
+}
+
+function rankPokemonCandidates(item, cards) {
+  return cards
+    .map((card) => scorePokemonCandidate(item, card))
+    .sort((a, b) => b.score - a.score);
+}
+
+function canBeHighConfidence(item, ranked) {
+  const observed = normalizeText([
+    item.card_name,
+    item.name,
+    item.set_name,
+    item.series,
+    item.card_number,
+    item.visible_text
+  ].join(" "));
+  const top = ranked?.[0];
+  if (!top) return false;
+  const card = top.card;
+  const hasName = /charizard/i.test(observed) && /charizard/i.test(card.name || "");
+  const hasSet = normalizeText(card.set?.name) && observed.includes(normalizeText(card.set?.name));
+  const hasNumber =
+    normalizeText(card.number) && (observed.includes(normalizeText(card.number)) || observed.includes(`${normalizeText(card.number)}/${card.set?.printedTotal || ""}`));
+  return hasName && hasSet && hasNumber && top.score >= 70;
 }
 
 function getTcgPlayerPrice(card) {
@@ -359,7 +467,7 @@ async function getExternalPricing(item, matchedCard) {
   };
 }
 
-function cardToPossibleMatch(card, fallbackConfidence = 80) {
+function cardToPossibleMatch(card, fallbackConfidence = 80, reasons = []) {
   return {
     card_name: card.name || "Unknown card",
     set_name: card.set?.name || "Unknown set",
@@ -368,19 +476,31 @@ function cardToPossibleMatch(card, fallbackConfidence = 80) {
     confidence: fallbackConfidence,
     reference_image_url: card.images?.small || card.images?.large || "",
     pokemon_tcg_id: card.id || "",
-    reason: "Matched against Pokemon TCG card database."
+    reason: reasons.length ? `Matched by ${reasons.join(", ")}.` : "Matched against Pokemon TCG card database."
   };
 }
 
 async function enrichCardIdentification(item) {
-  const matches = await searchPokemonCards(item);
-  const matchedCard = matches[0] || null;
+  const rankedMatches = await searchPokemonCards(item);
+  const topRank = rankedMatches[0] || null;
+  const matchedCard = topRank?.card || null;
   const pricing = await getExternalPricing(item, matchedCard);
-  const possibleMatches = matches.slice(0, 3).map((card, index) =>
-    cardToPossibleMatch(card, Math.max(70, Number(item.confidence || 0) - index * 7))
+  const highConfidenceAllowed = canBeHighConfidence(item, rankedMatches);
+  const possibleMatches = rankedMatches.slice(0, 3).map((rank, index) =>
+    cardToPossibleMatch(rank.card, Math.max(55, Math.min(89, rank.score - index * 4)), rank.reasons)
   );
   const confidence = Math.round(Number(item.confidence || 0));
-  const exactConfidence = matchedCard && confidence >= 90 ? confidence : Math.min(confidence, matchedCard ? 89 : confidence);
+  const exactConfidence = highConfidenceAllowed
+    ? Math.min(98, Math.max(90, Math.round((confidence + topRank.score) / 2)))
+    : Math.min(80, confidence, Math.max(50, topRank?.score || 50));
+  const sourceLog = {
+    vision: "OpenAI Vision",
+    card_database: matchedCard ? "Pokemon TCG API" : "No Pokemon TCG API match",
+    fallback: "disabled"
+  };
+  console.log(
+    `[Glitch identify] sources=${sourceLog.vision},${sourceLog.card_database}; fallback=${sourceLog.fallback}; top="${matchedCard?.name || "none"}"; set="${matchedCard?.set?.name || "none"}"; confidence=${exactConfidence}`
+  );
 
   return {
     ...item,
@@ -401,6 +521,9 @@ async function enrichCardIdentification(item) {
     pokemon_tcg_id: matchedCard?.id || "",
     possible_matches: exactConfidence < 90 ? possibleMatches : [],
     pricing_sources: pricing,
+    identification_sources: sourceLog,
+    match_score: topRank?.score || 0,
+    match_reasons: topRank?.reasons || [],
     ai_explanation:
       item.ai_explanation ||
       "Exact-card identification uses visible card text, set clues, card number, rarity, and Pokemon TCG database matching."
@@ -438,7 +561,10 @@ async function createReviewItems(token, scan, photos, identifications) {
         reference_image_url: item.reference_image_url || "",
         pokemon_tcg_id: item.pokemon_tcg_id || "",
         possible_matches: item.possible_matches || [],
-        pricing_sources: item.pricing_sources || {}
+        pricing_sources: item.pricing_sources || {},
+        identification_sources: item.identification_sources || {},
+        match_score: item.match_score || 0,
+        match_reasons: item.match_reasons || []
       },
       status: "pending"
     };
