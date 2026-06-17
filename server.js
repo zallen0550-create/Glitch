@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const port = Number(process.env.PORT || 4176);
+const PORT = Number(process.env.PORT || 10000);
 const root = __dirname;
 const supabaseUrl = process.env.SUPABASE_URL || "https://sijzigpchtkjegrrjrox.supabase.co";
 const supabaseAnonKey =
@@ -402,7 +402,7 @@ http
       response.end(content);
     });
   })
-  .listen(port, "127.0.0.1", () => {
+  .listen(PORT, "0.0.0.0", () => {
     logReadinessChecks();
-    console.log(`Glitch prototype running at http://127.0.0.1:${port}`);
+    console.log(`Server running on port ${PORT}`);
   });
