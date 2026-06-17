@@ -1856,7 +1856,7 @@ body.is-scanning #analyzeButton {
 
 .item-topline {
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 72px 72px 1fr;
   gap: 14px;
   align-items: center;
 }
@@ -1894,6 +1894,34 @@ body.is-scanning #analyzeButton {
   inset: 10px;
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 13px;
+}
+
+.reference-art {
+  width: 72px;
+  height: 90px;
+  border-radius: 18px;
+  background: var(--ref) center / cover;
+  box-shadow:
+    inset 0 0 0 1px rgba(124, 60, 255, 0.18),
+    0 16px 28px rgba(42, 33, 69, 0.11);
+  position: relative;
+  overflow: hidden;
+}
+
+.reference-art::after {
+  content: "Match";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 7px;
+  min-height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(124, 60, 255, 0.82);
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .item-main h4,
@@ -2004,6 +2032,51 @@ body.is-scanning #analyzeButton {
   line-height: 1.45;
 }
 
+.card-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.card-identity-grid span {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.card-identity-grid strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.possible-matches {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(13, 140, 255, 0.08);
+}
+
+.possible-matches strong {
+  color: var(--blue);
+  font-size: 12px;
+}
+
+.possible-matches span {
+  color: #3f3a4a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .recommendation {
   margin: 16px 0 0;
   padding: 14px;
@@ -2091,10 +2164,16 @@ body.is-scanning #analyzeButton {
 }
 
 #inventoryPage .item-topline {
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: 96px 96px 1fr;
 }
 
 #inventoryPage .item-art {
+  width: 96px;
+  height: 120px;
+  border-radius: 22px;
+}
+
+#inventoryPage .reference-art {
   width: 96px;
   height: 120px;
   border-radius: 22px;
@@ -2556,12 +2635,32 @@ body.is-scanning #analyzeButton {
   }
 
   #inventoryPage .item-topline {
-    grid-template-columns: 82px 1fr;
+    grid-template-columns: 82px 82px 1fr;
   }
 
   #inventoryPage .item-art {
     width: 82px;
     height: 104px;
+  }
+
+  #inventoryPage .reference-art {
+    width: 82px;
+    height: 104px;
+  }
+
+  .item-topline {
+    grid-template-columns: 64px 64px 1fr;
+    gap: 10px;
+  }
+
+  .item-art,
+  .reference-art {
+    width: 64px;
+    height: 82px;
+  }
+
+  .card-identity-grid {
+    grid-template-columns: 1fr;
   }
 
   .verified-grid {

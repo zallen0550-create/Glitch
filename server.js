@@ -10,6 +10,9 @@ const supabaseAnonKey =
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const openAiApiKey = process.env.OPENAI_API_KEY || "";
 const openAiModel = process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini";
+const pokemonTcgApiKey = process.env.POKEMON_TCG_API_KEY || "";
+const tcgPlayerApiKey = process.env.TCGPLAYER_API_KEY || "";
+const ebayBearerToken = process.env.EBAY_BEARER_TOKEN || "";
 const allowMockAi = process.env.NODE_ENV !== "production" && process.env.GLITCH_ALLOW_MOCK_AI !== "false";
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -197,7 +200,7 @@ async function identifyWithOpenAi(photos) {
             {
               type: "input_text",
               text:
-                "Identify collectible items in these images. Return strict JSON with an items array. Each item needs name, category, series, estimated_value, low_value, high_value, confidence, condition_estimate, recommended_action, and ai_explanation."
+                "Identify the exact Pokemon card shown in each uploaded image. Do not identify only the character. Read visible text, card number, set symbols, language, rarity clues, foil treatment, copyright/year, and condition clues. Return strict JSON with an items array. If confidence is under 90, include exactly three possible_matches. Pricing may be unknown at this step."
             },
             ...imageContent
           ]
@@ -218,27 +221,56 @@ async function identifyWithOpenAi(photos) {
                   additionalProperties: false,
                   properties: {
                     name: { type: "string" },
+                    character: { type: "string" },
+                    card_name: { type: "string" },
                     category: { type: "string" },
                     series: { type: "string" },
+                    set_name: { type: "string" },
+                    card_number: { type: "string" },
+                    rarity: { type: "string" },
+                    language: { type: "string" },
                     estimated_value: { type: "number" },
                     low_value: { type: "number" },
                     high_value: { type: "number" },
                     confidence: { type: "number" },
                     condition_estimate: { type: "string" },
                     recommended_action: { type: "string" },
-                    ai_explanation: { type: "string" }
+                    ai_explanation: { type: "string" },
+                    possible_matches: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                          card_name: { type: "string" },
+                          set_name: { type: "string" },
+                          card_number: { type: "string" },
+                          rarity: { type: "string" },
+                          confidence: { type: "number" },
+                          reason: { type: "string" }
+                        },
+                        required: ["card_name", "set_name", "card_number", "rarity", "confidence", "reason"]
+                      }
+                    }
                   },
                   required: [
                     "name",
+                    "character",
+                    "card_name",
                     "category",
                     "series",
+                    "set_name",
+                    "card_number",
+                    "rarity",
+                    "language",
                     "estimated_value",
                     "low_value",
                     "high_value",
                     "confidence",
                     "condition_estimate",
                     "recommended_action",
-                    "ai_explanation"
+                    "ai_explanation",
+                    "possible_matches"
                   ]
                 }
               }
@@ -257,6 +289,124 @@ async function identifyWithOpenAi(photos) {
   return parsed.items || [];
 }
 
+function pokemonQueryValue(value) {
+  return String(value || "")
+    .replaceAll('"', "")
+    .replace(/[^\w\s-]/g, " ")
+    .trim();
+}
+
+async function searchPokemonCards(item) {
+  const clauses = [];
+  const cardName = pokemonQueryValue(item.card_name || item.name);
+  const setName = pokemonQueryValue(item.set_name || item.series);
+  const cardNumber = pokemonQueryValue(item.card_number);
+  if (cardName) clauses.push(`name:"${cardName}"`);
+  if (setName) clauses.push(`set.name:"${setName}"`);
+  if (cardNumber) clauses.push(`number:"${cardNumber}"`);
+
+  const queries = [
+    clauses.join(" "),
+    [cardName ? `name:"${cardName}"` : "", cardNumber ? `number:"${cardNumber}"` : ""].filter(Boolean).join(" "),
+    cardName ? `name:"${cardName}"` : ""
+  ].filter(Boolean);
+
+  for (const query of queries) {
+    const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=3`;
+    const response = await fetch(url, {
+      headers: {
+        ...(pokemonTcgApiKey ? { "X-Api-Key": pokemonTcgApiKey } : {})
+      }
+    }).catch(() => null);
+    if (!response?.ok) continue;
+    const body = await response.json().catch(() => null);
+    if (body?.data?.length) return body.data;
+  }
+
+  return [];
+}
+
+function getTcgPlayerPrice(card) {
+  const priceGroups = Object.values(card?.tcgplayer?.prices || {});
+  const marketPrices = priceGroups
+    .flatMap((prices) => [prices.market, prices.mid, prices.low, prices.high])
+    .filter((value) => Number.isFinite(Number(value)))
+    .map(Number);
+  if (!marketPrices.length) return null;
+  const value = marketPrices[0];
+  return {
+    estimated_value: Math.round(value),
+    low_value: Math.round(Math.min(...marketPrices)),
+    high_value: Math.round(Math.max(...marketPrices)),
+    source: "Pokemon TCG API / TCGPlayer"
+  };
+}
+
+async function getExternalPricing(item, matchedCard) {
+  const tcgPrice = getTcgPlayerPrice(matchedCard);
+  return {
+    tcgplayer: tcgPrice || {
+      source: tcgPlayerApiKey ? "TCGPlayer API not connected for direct pricing yet" : "TCGPlayer credentials missing",
+      unavailable: true
+    },
+    ebay: {
+      source: ebayBearerToken ? "eBay sold listings integration pending endpoint approval" : "eBay credentials missing",
+      unavailable: true
+    },
+    estimated_value: tcgPrice?.estimated_value || Number(item.estimated_value || 0),
+    low_value: tcgPrice?.low_value || Number(item.low_value || item.estimated_value || 0),
+    high_value: tcgPrice?.high_value || Number(item.high_value || item.estimated_value || 0)
+  };
+}
+
+function cardToPossibleMatch(card, fallbackConfidence = 80) {
+  return {
+    card_name: card.name || "Unknown card",
+    set_name: card.set?.name || "Unknown set",
+    card_number: card.number || "",
+    rarity: card.rarity || "Unknown rarity",
+    confidence: fallbackConfidence,
+    reference_image_url: card.images?.small || card.images?.large || "",
+    pokemon_tcg_id: card.id || "",
+    reason: "Matched against Pokemon TCG card database."
+  };
+}
+
+async function enrichCardIdentification(item) {
+  const matches = await searchPokemonCards(item);
+  const matchedCard = matches[0] || null;
+  const pricing = await getExternalPricing(item, matchedCard);
+  const possibleMatches = matches.slice(0, 3).map((card, index) =>
+    cardToPossibleMatch(card, Math.max(70, Number(item.confidence || 0) - index * 7))
+  );
+  const confidence = Math.round(Number(item.confidence || 0));
+  const exactConfidence = matchedCard && confidence >= 90 ? confidence : Math.min(confidence, matchedCard ? 89 : confidence);
+
+  return {
+    ...item,
+    name: matchedCard?.name || item.card_name || item.name,
+    card_name: matchedCard?.name || item.card_name || item.name,
+    category: "Trading Card",
+    series: matchedCard?.set?.name || item.set_name || item.series,
+    set_name: matchedCard?.set?.name || item.set_name || item.series,
+    card_number: matchedCard?.number || item.card_number || "",
+    rarity: matchedCard?.rarity || item.rarity || "Unknown",
+    language: item.language || "Unknown",
+    estimated_value: pricing.estimated_value,
+    low_value: pricing.low_value,
+    high_value: pricing.high_value,
+    confidence: exactConfidence,
+    marketplace_source: pricing.tcgplayer?.unavailable ? "AI estimate" : pricing.tcgplayer.source,
+    reference_image_url: matchedCard?.images?.large || matchedCard?.images?.small || "",
+    pokemon_tcg_id: matchedCard?.id || "",
+    possible_matches: exactConfidence < 90 ? possibleMatches : [],
+    pricing_sources: pricing,
+    ai_explanation:
+      item.ai_explanation ||
+      "Exact-card identification uses visible card text, set clues, card number, rarity, and Pokemon TCG database matching."
+  };
+}
+
 async function createReviewItems(token, scan, photos, identifications) {
   const rows = identifications.map((item, index) => {
     const photo = photos[index % Math.max(photos.length, 1)] || {};
@@ -266,6 +416,7 @@ async function createReviewItems(token, scan, photos, identifications) {
       name: item.name,
       category: item.category,
       series: item.series,
+      set_series: item.set_name || item.series,
       estimated_value: item.estimated_value,
       low_value: item.low_value,
       high_value: item.high_value,
@@ -277,6 +428,18 @@ async function createReviewItems(token, scan, photos, identifications) {
       photo_bucket: photo.bucket || null,
       photo_path: photo.path || null,
       photo_url: photo.url || null,
+      metadata: {
+        character: item.character || "",
+        card_name: item.card_name || item.name,
+        set_name: item.set_name || item.series,
+        card_number: item.card_number || "",
+        rarity: item.rarity || "",
+        language: item.language || "",
+        reference_image_url: item.reference_image_url || "",
+        pokemon_tcg_id: item.pokemon_tcg_id || "",
+        possible_matches: item.possible_matches || [],
+        pricing_sources: item.pricing_sources || {}
+      },
       status: "pending"
     };
   });
@@ -299,7 +462,8 @@ async function handleIdentify(request, response) {
 
     const user = await getSupabaseUser(token);
     const scan = await createScan(token, payload, user.id);
-    const identifications = await identifyWithOpenAi(photos);
+    const rawIdentifications = await identifyWithOpenAi(photos);
+    const identifications = await Promise.all(rawIdentifications.map(enrichCardIdentification));
     const reviewItems = await createReviewItems(token, scan, photos, identifications);
     const completedScan = await updateScan(token, scan.id, {
       status: "completed",

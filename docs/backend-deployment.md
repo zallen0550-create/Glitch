@@ -41,12 +41,17 @@ SUPABASE_ANON_KEY=your_supabase_publishable_or_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_VISION_MODEL=gpt-4.1-mini
+POKEMON_TCG_API_KEY=optional_pokemon_tcg_api_key
+TCGPLAYER_API_KEY=optional_tcgplayer_api_key
+EBAY_BEARER_TOKEN=optional_ebay_bearer_token
 PORT=4176
 ```
 
 Notes:
 
 - `OPENAI_VISION_MODEL` can be changed later.
+- `POKEMON_TCG_API_KEY` improves Pokemon TCG database reliability but the public API may still work without it.
+- `TCGPLAYER_API_KEY` and `EBAY_BEARER_TOKEN` are reserved for direct marketplace pricing once those partner/API credentials are approved.
 - `PORT` may be assigned automatically by the host.
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` to frontend code, iOS code, or public repos.
 
@@ -92,6 +97,9 @@ SUPABASE_ANON_KEY=your_supabase_publishable_or_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_VISION_MODEL=gpt-4.1-mini
+POKEMON_TCG_API_KEY=optional_pokemon_tcg_api_key
+TCGPLAYER_API_KEY=optional_tcgplayer_api_key
+EBAY_BEARER_TOKEN=optional_ebay_bearer_token
 ```
 
 8. Deploy.
@@ -118,6 +126,9 @@ SUPABASE_ANON_KEY=your_supabase_publishable_or_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_VISION_MODEL=gpt-4.1-mini
+POKEMON_TCG_API_KEY=optional_pokemon_tcg_api_key
+TCGPLAYER_API_KEY=optional_tcgplayer_api_key
+EBAY_BEARER_TOKEN=optional_ebay_bearer_token
 ```
 
 5. Set the run command:

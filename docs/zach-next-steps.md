@@ -47,6 +47,15 @@ Optional:
   - Used as `OPENAI_VISION_MODEL`
   - Current recommended placeholder: `gpt-4.1-mini`
 
+Optional card-data credentials:
+
+- [ ] Pokemon TCG API key
+  - Used as `POKEMON_TCG_API_KEY`
+- [ ] TCGPlayer API key
+  - Used as `TCGPLAYER_API_KEY`
+- [ ] eBay bearer token
+  - Used as `EBAY_BEARER_TOKEN`
+
 ## Render Environment Variables
 
 Add these in Render:
@@ -59,6 +68,9 @@ SUPABASE_ANON_KEY=your_supabase_publishable_or_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_VISION_MODEL=gpt-4.1-mini
+POKEMON_TCG_API_KEY=optional_pokemon_tcg_api_key
+TCGPLAYER_API_KEY=optional_tcgplayer_api_key
+EBAY_BEARER_TOKEN=optional_ebay_bearer_token
 ```
 
 ## Deploy Backend

@@ -135,7 +135,8 @@ const GlitchAdapters = {
           marketplace_source: item.marketplace,
           ai_explanation: item.explanation,
           photo_url: item.storage?.url || item.photoUrl || null,
-          photo_path: item.storage?.path || item.photoPath || null
+          photo_path: item.storage?.path || item.photoPath || null,
+          metadata: item.metadata || {}
         }));
         const inserted = await GlitchAdapters.auth.insertInventoryItems(rows);
         const uuidIds = approvedItems
@@ -801,6 +802,9 @@ function renderReview() {
         <input name="name" value="${escapeHtml(item.name)}" aria-label="Item name" />
         <input name="category" value="${escapeHtml(item.category)}" aria-label="Category" />
         <input name="series" value="${escapeHtml(item.series)}" aria-label="Set or series" />
+        <input name="cardNumber" value="${escapeHtml(item.cardNumber)}" aria-label="Card number" />
+        <input name="rarity" value="${escapeHtml(item.rarity)}" aria-label="Rarity" />
+        <input name="language" value="${escapeHtml(item.language)}" aria-label="Language" />
         <select name="action" aria-label="Recommended action">
           ${["Sell", "Hold", "Grade", "Bundle", "Watch"]
             .map((action) => `<option value="${action}" ${action === item.action ? "selected" : ""}>${action}</option>`)
@@ -855,8 +859,17 @@ function renderReview() {
         name: form.get("name").trim() || item.name,
         category: form.get("category").trim() || item.category,
         series: form.get("series").trim() || item.series,
+        cardNumber: form.get("cardNumber").trim() || item.cardNumber,
+        rarity: form.get("rarity").trim() || item.rarity,
+        language: form.get("language").trim() || item.language,
         action: form.get("action"),
         explanation: form.get("explanation").trim() || item.explanation,
+        metadata: {
+          ...(item.metadata || {}),
+          card_number: form.get("cardNumber").trim() || item.cardNumber,
+          rarity: form.get("rarity").trim() || item.rarity,
+          language: form.get("language").trim() || item.language
+        },
         recommendationReason: getRecommendationReason(form.get("action"))
       });
       showToast("Result updated");
@@ -932,9 +945,14 @@ function renderDetail() {
   detailContent.innerHTML = `
     <div class="detail-art"></div>
     <h2 id="detailTitle">${escapeHtml(item.name)}</h2>
-    <p class="detail-meta">${escapeHtml(item.category)} / ${escapeHtml(item.series)}</p>
+    <p class="detail-meta">${escapeHtml(item.category)} / ${escapeHtml(item.series)} / #${escapeHtml(item.cardNumber || "Unknown")}</p>
+    <div class="card-identity-grid">
+      <span>Rarity <strong>${escapeHtml(item.rarity || "Unknown")}</strong></span>
+      <span>Language <strong>${escapeHtml(item.language || "Unknown")}</strong></span>
+      <span>Character <strong>${escapeHtml(item.character || "Unknown")}</strong></span>
+    </div>
     <div class="market-strip">
-      <span>Mock market source</span>
+      <span>Market source</span>
       <strong>${escapeHtml(item.marketplace)}</strong>
     </div>
     <div class="detail-value">
@@ -1051,6 +1069,7 @@ async function persistReviewItems(items) {
       photo_url: photo?.storage?.url || photo?.url || null,
       photo_path: photo?.storage?.path || null,
       photo_bucket: photo?.storage?.bucket || null,
+      metadata: item.metadata || {},
       status: "pending"
     };
   });
@@ -1120,9 +1139,10 @@ function itemMarkup(item) {
   return `
     <div class="item-topline">
       <div class="item-art"></div>
+      ${item.referenceImageUrl ? `<div class="reference-art" style="--ref: url('${escapeHtml(item.referenceImageUrl)}')"></div>` : ""}
       <div class="item-main">
         <h4>${escapeHtml(item.name)}</h4>
-        <p>${escapeHtml(item.category)} / ${escapeHtml(item.series)} / ${escapeHtml(item.marketplace)}</p>
+        <p>${escapeHtml(item.category)} / ${escapeHtml(item.series)} / #${escapeHtml(item.cardNumber || "Unknown")}</p>
       </div>
     </div>
     <div class="value-row">
@@ -1133,6 +1153,19 @@ function itemMarkup(item) {
       <span>${currency.format(item.low)}-${currency.format(item.high)} value range / ${item.confidence}% confidence</span>
       <div class="meter" style="--score: ${item.confidence}%"><i></i></div>
     </div>
+    <div class="card-identity-grid">
+      <span>Character <strong>${escapeHtml(item.character || "Unknown")}</strong></span>
+      <span>Rarity <strong>${escapeHtml(item.rarity || "Unknown")}</strong></span>
+      <span>Language <strong>${escapeHtml(item.language || "Unknown")}</strong></span>
+    </div>
+    ${item.possibleMatches?.length ? `
+      <div class="possible-matches">
+        <strong>Top possible matches</strong>
+        ${item.possibleMatches.slice(0, 3).map((match) => `
+          <span>${escapeHtml(match.card_name)} / ${escapeHtml(match.set_name)} / #${escapeHtml(match.card_number)} (${Math.round(match.confidence || 0)}%)</span>
+        `).join("")}
+      </div>
+    ` : ""}
     <p class="ai-note">${escapeHtml(item.explanation)}</p>
   `;
 }
@@ -1254,6 +1287,15 @@ function normalizeSupabaseItems(rows = []) {
     recommendationReason: getRecommendationReason(row.recommended_action || "Watch"),
     photoUrl: row.photo_url,
     photoPath: row.photo_path,
+    metadata: row.metadata || {},
+    character: row.metadata?.character || "",
+    cardName: row.metadata?.card_name || row.name,
+    cardNumber: row.metadata?.card_number || "",
+    rarity: row.metadata?.rarity || "",
+    language: row.metadata?.language || "",
+    referenceImageUrl: row.metadata?.reference_image_url || "",
+    possibleMatches: row.metadata?.possible_matches || [],
+    pricingSources: row.metadata?.pricing_sources || {},
     art: imageBackground(row.photo_url)
   }));
 }
